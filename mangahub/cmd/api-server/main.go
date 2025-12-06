@@ -15,7 +15,6 @@ func main() {
 	defer db.Close()
 
 	router := gin.Default()
-
 
 	router.POST("/auth/register", auth.RegisterHandler(db))
 	router.POST("/auth/login", auth.LoginHandler(db))

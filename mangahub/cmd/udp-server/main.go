@@ -6,7 +6,7 @@ import (
 )
 
 func main() {
-	server := udp.NewNotificationServer(":9001")
-	log.Println("Starting UDP Notification Server on :9001")
+	server := udp.NewNotificationServer(":9091")
+	log.Println("Starting UDP Notification Server on :9091")
 	server.Start()
 }
