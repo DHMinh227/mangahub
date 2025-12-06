@@ -15,10 +15,7 @@ func main() {
 	defer db.Close()
 
 	router := gin.Default()
-
-	router.GET("/ping", func(c *gin.Context) {
-		c.JSON(200, gin.H{"message": "pong"})
-	})
+
 
 	router.POST("/auth/register", auth.RegisterHandler(db))
 	router.POST("/auth/login", auth.LoginHandler(db))
