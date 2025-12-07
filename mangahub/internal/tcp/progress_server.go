@@ -2,9 +2,11 @@ package tcp
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"net"
+	"net/http"
 	"sync"
 	"time"
 )
@@ -74,6 +76,10 @@ func (s *ProgressSyncServer) handleClient(conn net.Conn) {
 
 		update.Timestamp = time.Now().Unix()
 
+		// 1. Save progress using HTTP API
+		go sendProgressToAPI(update)
+
+		// 2. Broadcast to all TCP clients
 		s.Broadcast <- update
 	}
 
@@ -95,5 +101,23 @@ func (s *ProgressSyncServer) broadcastLoop() {
 			_ = addr
 		}
 		s.mu.Unlock()
+	}
+}
+
+func sendProgressToAPI(update ProgressUpdate) {
+	jsonData, _ := json.Marshal(map[string]interface{}{
+		"user_id":  update.UserID,
+		"manga_id": update.MangaID,
+		"chapter":  update.Chapter,
+	})
+
+	_, err := http.Post(
+		"http://localhost:8080/users/progress", // your API
+		"application/json",
+		bytes.NewBuffer(jsonData),
+	)
+
+	if err != nil {
+		fmt.Println("Failed to sync with API:", err)
 	}
 }
