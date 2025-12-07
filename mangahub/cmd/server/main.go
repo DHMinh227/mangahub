@@ -1,4 +1,5 @@
-package main
+delete later
+\\package main
 
 import (
 	"log"
@@ -22,3 +23,7 @@ func main() {
 	log.Println("API server starting on :8080")
 	api.StartHTTPServer(tcpServer)
 }
+
+\\
+
+delete later
