@@ -5,7 +5,6 @@ import (
 	"mangahub/internal/auth"
 	"mangahub/internal/manga"
 	"mangahub/internal/user"
-
 	"mangahub/pkg/database"
 
 	"github.com/gin-gonic/gin"
