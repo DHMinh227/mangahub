@@ -18,6 +18,8 @@ func main() {
 
 	router.POST("/auth/register", auth.RegisterHandler(db))
 	router.POST("/auth/login", auth.LoginHandler(db))
+	router.POST("/auth/refresh", auth.RefreshHandler(db))
+	router.POST("/auth/logout", auth.LogoutHandler(db))
 
 	manga.RegisterRoutes(router, db)
 	user.RegisterProgressRoutes(router, db)
