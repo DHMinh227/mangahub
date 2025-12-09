@@ -44,26 +44,34 @@ func InitDB(path string) *sql.DB {
 }
 
 func createTables(db *sql.DB) {
-	// users, manga assumed to already exist — add user_progress and refresh_tokens
 	stmts := []string{
+		`CREATE TABLE IF NOT EXISTS manga (
+        id TEXT PRIMARY KEY,
+        title TEXT,
+        author TEXT,
+        genres TEXT,
+        status TEXT,
+        total_chapters INTEGER,
+        description TEXT
+    );`,
 		`CREATE TABLE IF NOT EXISTS user_progress (
-			user_id TEXT,
-			manga_id TEXT,
-			current_chapter INTEGER,
-			status TEXT,
-			updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-			PRIMARY KEY (user_id, manga_id)
-		);`,
+        user_id TEXT,
+        manga_id TEXT,
+        current_chapter INTEGER,
+        status TEXT,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (user_id, manga_id)
+    );`,
 		`CREATE TABLE IF NOT EXISTS refresh_tokens (
-			token TEXT PRIMARY KEY,
-			user_id TEXT,
-			expires_at TIMESTAMP
-		);`,
+        token TEXT PRIMARY KEY,
+        user_id TEXT,
+        expires_at TIMESTAMP
+    );`,
 	}
 
-	for _, s := range stmts {
-		if _, err := db.Exec(s); err != nil {
-			log.Fatalf("failed to create table: %v", err)
+	for _, stmt := range stmts {
+		if _, err := db.Exec(stmt); err != nil {
+			log.Fatalf("failed to create table: %v\nSQL: %s", err, stmt)
 		}
 	}
 }

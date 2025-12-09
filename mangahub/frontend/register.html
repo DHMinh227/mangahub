@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Create Account</title>
+    <link rel="stylesheet" href="auth.css">
+</head>
+<body>
+
+<div class="container">
+    <div class="left-box">
+        <h1>MangaHub</h1>
+        <p>Create your account to track manga progress.</p>
+    </div>
+
+    <div class="right-box">
+        <h2>Create Account</h2>
+
+        <input id="reg-username" type="text" placeholder="Choose a username">
+        <input id="reg-password" type="password" placeholder="Choose a password">
+
+        <button onclick="registerUser()">Register</button>
+
+        <a href="login.html">Back to Login</a>
+    </div>
+</div>
+
+<script>
+const API = "http://localhost:8080";
+
+async function registerUser() {
+    const username = document.getElementById("reg-username").value;
+    const password = document.getElementById("reg-password").value;
+
+    const res = await fetch(API + "/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, password })
+    });
+
+    const data = await res.json();
+
+    if (data.access_token) {
+        alert("Account created! Redirecting to login...");
+        window.location.href = "login.html";
+    } else {
+        alert("Registration failed: " + JSON.stringify(data));
+    }
+}
+</script>
+
+</body>
+</html>

@@ -1,0 +1,48 @@
+body {
+    font-family: Arial;
+    margin: 20px;
+}
+
+header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+#search-bar input {
+    width: 250px;
+    padding: 5px;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 15px;
+}
+
+th, td {
+    padding: 8px;
+    border-bottom: 1px solid #ddd;
+}
+
+.center-box {
+    width: 300px;
+    margin: auto;
+    margin-top: 100px;
+    text-align: center;
+}
+
+.manga-detail {
+    display: flex;
+    margin-top: 20px;
+}
+
+.cover-box {
+    width: 200px;
+    height: 300px;
+    border: 2px dashed #aaa;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 20px;
+}

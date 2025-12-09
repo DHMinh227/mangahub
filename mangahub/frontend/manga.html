@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Manga Details</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header>
+    <h2>MangaHub</h2>
+    <div id="auth-buttons">
+        <button onclick="window.location.href='login.html'">Login</button>
+    </div>
+
+    <div id="logout-section" style="display:none;">
+        <span id="username-label"></span>
+        <button onclick="logout()">Logout</button>
+    </div>
+</header>
+
+<div class="manga-detail">
+    <div class="cover-box">Cover Image</div>
+
+    <div class="info-box">
+        <h2 id="title"></h2>
+        <p><b>ID:</b> <span id="manga-id"></span></p>
+        <p><b>Author:</b> <span id="author"></span></p>
+        <p><b>Genres:</b> <span id="genres"></span></p>
+        <p><b>Status:</b> <span id="status"></span></p>
+        <p><b>Chapters:</b> <span id="chapters"></span></p>
+    </div>
+</div>
+
+<h3>Description</h3>
+<p id="description"></p>
+
+<div id="user-section" style="display:none;">
+    <h3>Your Status</h3>
+    <p>Current Chapter: <span id="user-chapter">?</span></p>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
