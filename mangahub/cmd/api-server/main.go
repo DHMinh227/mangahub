@@ -3,12 +3,17 @@ package main
 import (
 	"log"
 	"mangahub/internal/auth"
+	grpcserver "mangahub/internal/grpc"
 	"mangahub/internal/manga"
 	"mangahub/internal/user"
 	"mangahub/pkg/database"
+	pb "mangahub/proto/manga"
+
+	"net"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"google.golang.org/grpc"
 )
 
 func main() {
@@ -29,6 +34,14 @@ func main() {
 		}
 		c.Next()
 	})
+
+	grpcServer := grpc.NewServer()
+	pb.RegisterMangaServiceServer(grpcServer, &grpcserver.GRPCMangaServer{DB: db})
+
+	go func() {
+		lis, _ := net.Listen("tcp", ":50051")
+		grpcServer.Serve(lis)
+	}()
 
 	// --- Public Auth ---
 	router.POST("/auth/register", auth.RegisterHandler(db))
