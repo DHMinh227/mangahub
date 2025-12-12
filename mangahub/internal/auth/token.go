@@ -11,7 +11,7 @@ import (
 
 var (
 	jwtSecret       = []byte("supersecretkey") // change later
-	accessTokenTTL  = 15 * time.Minute
+	accessTokenTTL  = 1 * time.Minute
 	refreshTokenTTL = 7 * 24 * time.Hour
 )
 

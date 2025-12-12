@@ -27,7 +27,6 @@ func main() {
 
 	grpcServer := grpc.NewServer()
 	svc := &grpcinternal.GRPCMangaServer{DB: db}
-
 	pb.RegisterMangaServiceServer(grpcServer, svc)
 
 	log.Printf("gRPC server listening on %s", *addr)

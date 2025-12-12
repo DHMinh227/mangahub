@@ -29,7 +29,15 @@ var (
 	refreshToken string
 	currentUser  string // username used as user_id in gRPC calls
 	grpcClient   pb.MangaServiceClient
+	lastMangaID  string
 )
+
+// ==================================
+// clear screen
+// ==================================
+func clearScreen() {
+	fmt.Print("\033[H\033[2J")
+}
 
 // ==================================
 // Utilities
@@ -52,6 +60,7 @@ func printHeader(title string) {
 // HTTP Auth (register/login/logout)
 // ==================================
 func registerUser() {
+	clearScreen()
 	printHeader("REGISTER")
 
 	username := input("Enter username: ")
@@ -90,6 +99,7 @@ func registerUser() {
 }
 
 func loginUser() {
+	clearScreen()
 	printHeader("LOGIN")
 
 	username := input("Username: ")
@@ -129,6 +139,7 @@ func loginUser() {
 }
 
 func logoutUser() {
+	clearScreen()
 	if refreshToken == "" {
 		fmt.Println("No refresh token stored; you may be logged out already.")
 		accessToken = ""
@@ -160,46 +171,25 @@ func logoutUser() {
 // ==================================
 
 func searchMangaGRPC(client pb.MangaServiceClient) {
+	clearScreen()
 	printHeader("MANGA SEARCH (gRPC)")
-	fmt.Println(`Format:
-search <query> --genre <genre> --status <status> --limit <number>`)
 
-	raw := input("\nEnter search command: ")
+	query := input("Enter keyword (empty = all): ")
+	genre := input("Genre filter (empty = ignore): ")
+	status := input("Status filter (empty = ignore): ")
+	limit := input("Limit (default 50): ")
 
-	query := ""
-	genre := ""
-	status := ""
-	limit := int32(50)
-
-	parts := strings.Split(raw, " ")
-
-	for i := 0; i < len(parts); i++ {
-		switch parts[i] {
-		case "search":
-			if i+1 < len(parts) {
-				query = strings.Trim(parts[i+1], `"`)
-			}
-		case "--genre":
-			if i+1 < len(parts) {
-				genre = parts[i+1]
-			}
-		case "--status":
-			if i+1 < len(parts) {
-				status = parts[i+1]
-			}
-		case "--limit":
-			if i+1 < len(parts) {
-				n, _ := strconv.Atoi(parts[i+1])
-				limit = int32(n)
-			}
-		}
+	lim := int32(50)
+	if limit != "" {
+		n, _ := strconv.Atoi(limit)
+		lim = int32(n)
 	}
 
 	req := &pb.SearchRequest{
 		Query:  query,
 		Genre:  genre,
 		Status: status,
-		Limit:  limit,
+		Limit:  lim,
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -211,23 +201,40 @@ search <query> --genre <genre> --status <status> --limit <number>`)
 		return
 	}
 
+	clearScreen()
+	printHeader("SEARCH RESULTS")
+
 	if len(resp.Results) == 0 {
 		fmt.Println("No results found.")
+		time.Sleep(1 * time.Second)
 		return
 	}
 
-	fmt.Println()
-	fmt.Println("ID                 Title                    Author            Status")
-	fmt.Println("------------------------------------------------------------------------")
-
 	for _, m := range resp.Results {
-		fmt.Printf("%-18s %-24s %-18s %-10s\n",
-			m.Id, m.Title, m.Author, m.Status)
+		fmt.Printf("[%s] %s (%s)\n", m.Id, m.Title, m.Status)
+	}
+
+	fmt.Println("\nOptions:")
+	fmt.Println("1) MANGA INFO")
+	fmt.Println("2) MAIN MENU")
+
+	choice := input("> ")
+
+	switch choice {
+	case "1":
+		lastMangaID = input("Enter manga ID: ")
+		mangaInfoGRPC(client) // pass through
 	}
 }
 
 func mangaInfoGRPC(client pb.MangaServiceClient) {
-	id := input("Enter manga ID: ")
+	clearScreen()
+
+	id := lastMangaID
+	if id == "" {
+		id = input("Enter manga ID: ")
+		lastMangaID = id
+	}
 
 	req := &pb.GetMangaRequest{Id: id}
 
@@ -240,31 +247,47 @@ func mangaInfoGRPC(client pb.MangaServiceClient) {
 		return
 	}
 
-	fmt.Println("┌───────────────────────────────────────────────────────────┐")
-	fmt.Printf("│ %-57s │\n", strings.ToUpper(m.Title))
-	fmt.Println("└───────────────────────────────────────────────────────────┘")
+	clearScreen()
+	printHeader("MANGA INFO")
 
-	fmt.Println("Basic Information:")
 	fmt.Println("ID:", m.Id)
 	fmt.Println("Title:", m.Title)
 	fmt.Println("Author:", m.Author)
 	fmt.Println("Genres:", m.Genres)
 	fmt.Println("Status:", m.Status)
-	fmt.Println("Chapters:", m.TotalChapters)
+	fmt.Println("Total Chapters:", m.TotalChapters)
 
 	fmt.Println("\nDescription:")
 	fmt.Println(m.Description)
+
+	fmt.Println("\nOptions:")
+	fmt.Println("1) UPDATE PROGRESS")
+	fmt.Println("2) MAIN MENU")
+
+	choice := input("> ")
+
+	switch choice {
+	case "1":
+		updateProgressGRPC(client)
+	default:
+		return
+	}
 }
 
 func updateProgressGRPC(client pb.MangaServiceClient) {
-	mangaId := input("Manga ID: ")
-	chapterStr := input("Current chapter: ")
+	clearScreen()
+	printHeader("UPDATE PROGRESS")
 
+	if lastMangaID == "" {
+		lastMangaID = input("Enter manga ID: ")
+	}
+
+	chapterStr := input("Enter current chapter: ")
 	ch, _ := strconv.Atoi(chapterStr)
 
 	req := &pb.ProgressRequest{
 		UserId:         currentUser,
-		MangaId:        mangaId,
+		MangaId:        lastMangaID,
 		CurrentChapter: int32(ch),
 	}
 
@@ -274,47 +297,19 @@ func updateProgressGRPC(client pb.MangaServiceClient) {
 	resp, err := client.UpdateProgress(ctx, req)
 	if err != nil {
 		fmt.Println("Error:", err)
+		time.Sleep(1 * time.Second)
 		return
 	}
 
 	fmt.Println(resp.Message)
-}
-
-// ==================================
-// Helpers
-// ==================================
-func tokenizeArgs(raw string) []string {
-	// very simple tokenizer that keeps quoted strings together
-	out := []string{}
-	current := ""
-	inQuote := false
-	for _, r := range raw {
-		switch r {
-		case ' ', '\t':
-			if inQuote {
-				current += string(r)
-			} else {
-				if current != "" {
-					out = append(out, current)
-					current = ""
-				}
-			}
-		case '"':
-			inQuote = !inQuote
-		default:
-			current += string(r)
-		}
-	}
-	if current != "" {
-		out = append(out, current)
-	}
-	return out
+	time.Sleep(1 * time.Second)
 }
 
 // ==================================
 // Menus
 // ==================================
 func mainMenu() {
+	clearScreen()
 	for {
 		printHeader("MAIN MENU")
 		fmt.Println("Options:")
@@ -327,27 +322,23 @@ func mainMenu() {
 		cmd := strings.ToLower(input("> "))
 
 		switch cmd {
-		case "search", "1":
+		case "1", "search":
 			searchMangaGRPC(grpcClient)
-
-		case "info", "mangainfo", "2":
+		case "2", "info", "mangainfo":
 			mangaInfoGRPC(grpcClient)
-
-		case "progress", "3":
+		case "3", "progress":
 			updateProgressGRPC(grpcClient)
-
-		case "logout", "4":
+		case "4", "logout":
 			logoutUser()
 			return
-		case "exit", "5":
+		case "5", "exit":
 			os.Exit(0)
-		default:
-			fmt.Println("Unknown command.")
 		}
 	}
 }
 
 func welcomeMenu() {
+	clearScreen()
 	for {
 		printHeader("WELCOME TO MANGAHUB CLI")
 		fmt.Println("Options:")
