@@ -52,12 +52,25 @@ message ProgressResponse {
     string message = 1;
 }
 
+message GetProgressRequest {
+    string user_id = 1;
+    string manga_id = 2;
+}
+
+message GetProgressResponse {
+    bool exists = 1;
+    int32 current_chapter = 2;
+}
+
 // --------------------------
 // Service
 // --------------------------
 
 service MangaService {
-    rpc GetManga(GetMangaRequest) returns (MangaResponse);
     rpc SearchManga(SearchRequest) returns (SearchResponse);
+    rpc GetManga(GetMangaRequest) returns (MangaResponse);
     rpc UpdateProgress(ProgressRequest) returns (ProgressResponse);
+
+    // NEW
+    rpc GetProgress(GetProgressRequest) returns (GetProgressResponse);
 }

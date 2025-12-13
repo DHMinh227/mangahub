@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.6.0
 // - protoc             v6.30.0
-// source: proto/manga.proto
+// source: proto/manga/manga.proto
 
 package manga
 
@@ -19,18 +19,21 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	MangaService_GetManga_FullMethodName       = "/manga.MangaService/GetManga"
 	MangaService_SearchManga_FullMethodName    = "/manga.MangaService/SearchManga"
+	MangaService_GetManga_FullMethodName       = "/manga.MangaService/GetManga"
 	MangaService_UpdateProgress_FullMethodName = "/manga.MangaService/UpdateProgress"
+	MangaService_GetProgress_FullMethodName    = "/manga.MangaService/GetProgress"
 )
 
 // MangaServiceClient is the client API for MangaService service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type MangaServiceClient interface {
-	GetManga(ctx context.Context, in *GetMangaRequest, opts ...grpc.CallOption) (*MangaResponse, error)
 	SearchManga(ctx context.Context, in *SearchRequest, opts ...grpc.CallOption) (*SearchResponse, error)
+	GetManga(ctx context.Context, in *GetMangaRequest, opts ...grpc.CallOption) (*MangaResponse, error)
 	UpdateProgress(ctx context.Context, in *ProgressRequest, opts ...grpc.CallOption) (*ProgressResponse, error)
+	// NEW
+	GetProgress(ctx context.Context, in *GetProgressRequest, opts ...grpc.CallOption) (*GetProgressResponse, error)
 }
 
 type mangaServiceClient struct {
@@ -41,20 +44,20 @@ func NewMangaServiceClient(cc grpc.ClientConnInterface) MangaServiceClient {
 	return &mangaServiceClient{cc}
 }
 
-func (c *mangaServiceClient) GetManga(ctx context.Context, in *GetMangaRequest, opts ...grpc.CallOption) (*MangaResponse, error) {
+func (c *mangaServiceClient) SearchManga(ctx context.Context, in *SearchRequest, opts ...grpc.CallOption) (*SearchResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(MangaResponse)
-	err := c.cc.Invoke(ctx, MangaService_GetManga_FullMethodName, in, out, cOpts...)
+	out := new(SearchResponse)
+	err := c.cc.Invoke(ctx, MangaService_SearchManga_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *mangaServiceClient) SearchManga(ctx context.Context, in *SearchRequest, opts ...grpc.CallOption) (*SearchResponse, error) {
+func (c *mangaServiceClient) GetManga(ctx context.Context, in *GetMangaRequest, opts ...grpc.CallOption) (*MangaResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(SearchResponse)
-	err := c.cc.Invoke(ctx, MangaService_SearchManga_FullMethodName, in, out, cOpts...)
+	out := new(MangaResponse)
+	err := c.cc.Invoke(ctx, MangaService_GetManga_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -71,13 +74,25 @@ func (c *mangaServiceClient) UpdateProgress(ctx context.Context, in *ProgressReq
 	return out, nil
 }
 
+func (c *mangaServiceClient) GetProgress(ctx context.Context, in *GetProgressRequest, opts ...grpc.CallOption) (*GetProgressResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetProgressResponse)
+	err := c.cc.Invoke(ctx, MangaService_GetProgress_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // MangaServiceServer is the server API for MangaService service.
 // All implementations must embed UnimplementedMangaServiceServer
 // for forward compatibility.
 type MangaServiceServer interface {
-	GetManga(context.Context, *GetMangaRequest) (*MangaResponse, error)
 	SearchManga(context.Context, *SearchRequest) (*SearchResponse, error)
+	GetManga(context.Context, *GetMangaRequest) (*MangaResponse, error)
 	UpdateProgress(context.Context, *ProgressRequest) (*ProgressResponse, error)
+	// NEW
+	GetProgress(context.Context, *GetProgressRequest) (*GetProgressResponse, error)
 	mustEmbedUnimplementedMangaServiceServer()
 }
 
@@ -88,14 +103,17 @@ type MangaServiceServer interface {
 // pointer dereference when methods are called.
 type UnimplementedMangaServiceServer struct{}
 
-func (UnimplementedMangaServiceServer) GetManga(context.Context, *GetMangaRequest) (*MangaResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method GetManga not implemented")
-}
 func (UnimplementedMangaServiceServer) SearchManga(context.Context, *SearchRequest) (*SearchResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method SearchManga not implemented")
 }
+func (UnimplementedMangaServiceServer) GetManga(context.Context, *GetMangaRequest) (*MangaResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetManga not implemented")
+}
 func (UnimplementedMangaServiceServer) UpdateProgress(context.Context, *ProgressRequest) (*ProgressResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method UpdateProgress not implemented")
+}
+func (UnimplementedMangaServiceServer) GetProgress(context.Context, *GetProgressRequest) (*GetProgressResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetProgress not implemented")
 }
 func (UnimplementedMangaServiceServer) mustEmbedUnimplementedMangaServiceServer() {}
 func (UnimplementedMangaServiceServer) testEmbeddedByValue()                      {}
@@ -118,24 +136,6 @@ func RegisterMangaServiceServer(s grpc.ServiceRegistrar, srv MangaServiceServer)
 	s.RegisterService(&MangaService_ServiceDesc, srv)
 }
 
-func _MangaService_GetManga_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetMangaRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(MangaServiceServer).GetManga(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: MangaService_GetManga_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(MangaServiceServer).GetManga(ctx, req.(*GetMangaRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 func _MangaService_SearchManga_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(SearchRequest)
 	if err := dec(in); err != nil {
@@ -150,6 +150,24 @@ func _MangaService_SearchManga_Handler(srv interface{}, ctx context.Context, dec
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(MangaServiceServer).SearchManga(ctx, req.(*SearchRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _MangaService_GetManga_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetMangaRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MangaServiceServer).GetManga(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: MangaService_GetManga_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MangaServiceServer).GetManga(ctx, req.(*GetMangaRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -172,6 +190,24 @@ func _MangaService_UpdateProgress_Handler(srv interface{}, ctx context.Context, 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _MangaService_GetProgress_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetProgressRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MangaServiceServer).GetProgress(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: MangaService_GetProgress_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MangaServiceServer).GetProgress(ctx, req.(*GetProgressRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // MangaService_ServiceDesc is the grpc.ServiceDesc for MangaService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -180,18 +216,22 @@ var MangaService_ServiceDesc = grpc.ServiceDesc{
 	HandlerType: (*MangaServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
-			MethodName: "GetManga",
-			Handler:    _MangaService_GetManga_Handler,
-		},
-		{
 			MethodName: "SearchManga",
 			Handler:    _MangaService_SearchManga_Handler,
+		},
+		{
+			MethodName: "GetManga",
+			Handler:    _MangaService_GetManga_Handler,
 		},
 		{
 			MethodName: "UpdateProgress",
 			Handler:    _MangaService_UpdateProgress_Handler,
 		},
+		{
+			MethodName: "GetProgress",
+			Handler:    _MangaService_GetProgress_Handler,
+		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "proto/manga.proto",
+	Metadata: "proto/manga/manga.proto",
 }

@@ -247,6 +247,14 @@ func mangaInfoGRPC(client pb.MangaServiceClient) {
 		return
 	}
 
+	// FETCH PROGRESS
+	progReq := &pb.GetProgressRequest{
+		UserId:  currentUser,
+		MangaId: m.Id,
+	}
+
+	progResp, _ := client.GetProgress(ctx, progReq)
+
 	clearScreen()
 	printHeader("MANGA INFO")
 
@@ -260,6 +268,10 @@ func mangaInfoGRPC(client pb.MangaServiceClient) {
 	fmt.Println("\nDescription:")
 	fmt.Println(m.Description)
 
+	if progResp.Exists {
+		fmt.Println("\nYour Progress: Chapter", progResp.CurrentChapter)
+	}
+
 	fmt.Println("\nOptions:")
 	fmt.Println("1) UPDATE PROGRESS")
 	fmt.Println("2) MAIN MENU")
@@ -269,9 +281,12 @@ func mangaInfoGRPC(client pb.MangaServiceClient) {
 	switch choice {
 	case "1":
 		updateProgressGRPC(client)
+		lastMangaID = "" // reset after update
 	default:
+		lastMangaID = "" // reset when returning to menu
 		return
 	}
+
 }
 
 func updateProgressGRPC(client pb.MangaServiceClient) {
@@ -324,7 +339,9 @@ func mainMenu() {
 		switch cmd {
 		case "1", "search":
 			searchMangaGRPC(grpcClient)
+			lastMangaID = ""
 		case "2", "info", "mangainfo":
+			lastMangaID = ""
 			mangaInfoGRPC(grpcClient)
 		case "3", "progress":
 			updateProgressGRPC(grpcClient)
