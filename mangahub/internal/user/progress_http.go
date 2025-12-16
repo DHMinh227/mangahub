@@ -12,7 +12,7 @@ func RegisterProgressRoutes(r gin.IRouter, db *sql.DB) {
 	r.POST("/users/progress", func(c *gin.Context) {
 
 		// user ID extracted by JWT middleware
-		userID := c.GetString("userID")
+		userID := c.GetString("user_id")
 		if userID == "" {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
 			return

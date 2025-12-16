@@ -17,15 +17,15 @@ func AuthMiddleware() gin.HandlerFunc {
 
 		token := strings.TrimPrefix(header, "Bearer ")
 		claims, err := ParseAccessToken(token)
-
 		if err != nil {
 			c.JSON(401, gin.H{"error": "invalid token"})
 			c.Abort()
 			return
 		}
-
+		c.Set("claims", claims)
 		c.Set("user_id", claims.UserID)
 		c.Set("username", claims.Username)
+		c.Set("role", claims.Role)
 		c.Next()
 	}
 }

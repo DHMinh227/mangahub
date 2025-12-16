@@ -21,8 +21,11 @@ func RegisterHandler(db *sql.DB) gin.HandlerFunc {
 		}
 
 		hash, _ := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
-		res, err := db.Exec(`INSERT INTO users (username, password_hash) VALUES (?, ?)`,
-			req.Username, hash)
+
+		res, err := db.Exec(`
+			INSERT INTO users (username, password_hash, role)
+			VALUES (?, ?, 'user')
+		`, req.Username, hash)
 
 		if err != nil {
 			c.JSON(409, gin.H{"error": "username exists"})
@@ -32,7 +35,7 @@ func RegisterHandler(db *sql.DB) gin.HandlerFunc {
 		id, _ := res.LastInsertId()
 		userID := fmt.Sprintf("%d", id)
 
-		access, _ := CreateAccessToken(userID, req.Username)
+		access, _ := CreateAccessToken(userID, req.Username, "user")
 		refresh, _ := CreateRefreshToken(db, userID)
 
 		c.JSON(201, gin.H{
@@ -55,10 +58,13 @@ func LoginHandler(db *sql.DB) gin.HandlerFunc {
 		}
 
 		var id int
-		var hash string
+		var hash, role string
 
-		err := db.QueryRow(`SELECT id, password_hash FROM users WHERE username = ?`,
-			req.Username).Scan(&id, &hash)
+		err := db.QueryRow(`
+			SELECT id, password_hash, role
+			FROM users
+			WHERE username = ?
+		`, req.Username).Scan(&id, &hash, &role)
 
 		if err != nil || bcrypt.CompareHashAndPassword([]byte(hash), []byte(req.Password)) != nil {
 			c.JSON(401, gin.H{"error": "invalid credentials"})
@@ -67,7 +73,7 @@ func LoginHandler(db *sql.DB) gin.HandlerFunc {
 
 		userID := fmt.Sprintf("%d", id)
 
-		access, _ := CreateAccessToken(userID, req.Username)
+		access, _ := CreateAccessToken(userID, req.Username, role)
 		refresh, _ := CreateRefreshToken(db, userID)
 
 		c.JSON(200, gin.H{
@@ -94,12 +100,23 @@ func RefreshHandler(db *sql.DB) gin.HandlerFunc {
 			return
 		}
 
-		var username string
-		_ = db.QueryRow(`SELECT username FROM users WHERE id = ?`, userID).Scan(&username)
+		var username, role string
+		err = db.QueryRow(`
+			SELECT username, role
+			FROM users
+			WHERE id = ?
+		`, userID).Scan(&username, &role)
 
-		access, _ := CreateAccessToken(userID, username)
+		if err != nil {
+			c.JSON(500, gin.H{"error": "user not found"})
+			return
+		}
 
-		c.JSON(200, gin.H{"access_token": access})
+		access, _ := CreateAccessToken(userID, username, role)
+
+		c.JSON(200, gin.H{
+			"access_token": access,
+		})
 	}
 }
 

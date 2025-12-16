@@ -5,8 +5,10 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
 	"strconv"
@@ -37,6 +39,59 @@ var (
 // ==================================
 func clearScreen() {
 	fmt.Print("\033[H\033[2J")
+}
+
+func authHeader(req *http.Request) {
+	req.Header.Set("Authorization", "Bearer "+accessToken)
+	req.Header.Set("Content-Type", "application/json")
+}
+
+func refreshAccessToken() error {
+	body, _ := json.Marshal(map[string]string{
+		"refresh_token": refreshToken,
+	})
+
+	resp, err := http.Post(HTTP_API+"/auth/refresh", "application/json", bytes.NewReader(body))
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("refresh failed")
+	}
+
+	var res map[string]string
+	json.NewDecoder(resp.Body).Decode(&res)
+
+	if res["access_token"] == "" {
+		return fmt.Errorf("no access token")
+	}
+
+	accessToken = res["access_token"]
+	return nil
+}
+
+func doAuthRequest(req *http.Request) (*http.Response, error) {
+	authHeader(req)
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.StatusCode != http.StatusUnauthorized {
+		return resp, nil
+	}
+
+	resp.Body.Close()
+
+	if err := refreshAccessToken(); err != nil {
+		return nil, err
+	}
+
+	authHeader(req)
+	return http.DefaultClient.Do(req)
 }
 
 // ==================================
@@ -90,12 +145,34 @@ func registerUser() {
 			if rt, ok2 := reply["refresh_token"].(string); ok2 {
 				refreshToken = rt
 			}
-			currentUser = username
+			currentUser = getUserIDFromJWT(accessToken)
 			fmt.Println("Logged in as:", username)
 		}
 	} else {
 		fmt.Println("Register failed:", reply["error"])
 	}
+}
+
+func getUserIDFromJWT(token string) string {
+	parts := strings.Split(token, ".")
+	if len(parts) != 3 {
+		return ""
+	}
+
+	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		return ""
+	}
+
+	var claims struct {
+		UserID string `json:"user_id"`
+	}
+
+	if err := json.Unmarshal(payload, &claims); err != nil {
+		return ""
+	}
+
+	return claims.UserID
 }
 
 func loginUser() {
@@ -127,11 +204,12 @@ func loginUser() {
 		if rt, ok2 := reply["refresh_token"].(string); ok2 {
 			refreshToken = rt
 		}
-		currentUser = username
+		currentUser = getUserIDFromJWT(accessToken)
+
 		fmt.Println("Login successful!")
 	} else if t2, ok := reply["token"].(string); ok {
 		accessToken = t2
-		currentUser = username
+		currentUser = getUserIDFromJWT(accessToken)
 		fmt.Println("Login successful!")
 	} else {
 		fmt.Println("Login failed:", reply["error"])
@@ -279,8 +357,8 @@ func mangaInfoGRPC(client pb.MangaServiceClient) {
 	choice := input("> ")
 
 	switch choice {
-	case "1":
-		updateProgressGRPC(client)
+	case "1", "progress":
+		updateProgressHTTP()
 		lastMangaID = "" // reset after update
 	default:
 		lastMangaID = "" // reset when returning to menu
@@ -289,7 +367,7 @@ func mangaInfoGRPC(client pb.MangaServiceClient) {
 
 }
 
-func updateProgressGRPC(client pb.MangaServiceClient) {
+func updateProgressHTTP() {
 	clearScreen()
 	printHeader("UPDATE PROGRESS")
 
@@ -300,24 +378,32 @@ func updateProgressGRPC(client pb.MangaServiceClient) {
 	chapterStr := input("Enter current chapter: ")
 	ch, _ := strconv.Atoi(chapterStr)
 
-	req := &pb.ProgressRequest{
-		UserId:         currentUser,
-		MangaId:        lastMangaID,
-		CurrentChapter: int32(ch),
+	payload := map[string]interface{}{
+		"manga_id": lastMangaID,
+		"chapter":  ch,
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
+	data, _ := json.Marshal(payload)
 
-	resp, err := client.UpdateProgress(ctx, req)
+	req, _ := http.NewRequest(
+		"POST",
+		HTTP_API+"/users/progress",
+		bytes.NewBuffer(data),
+	)
+
+	resp, err := doAuthRequest(req)
 	if err != nil {
-		fmt.Println("Error:", err)
-		time.Sleep(1 * time.Second)
+		fmt.Println("Request failed:", err)
+		time.Sleep(time.Second)
 		return
 	}
+	defer resp.Body.Close()
 
-	fmt.Println(resp.Message)
-	time.Sleep(1 * time.Second)
+	var res map[string]string
+	json.NewDecoder(resp.Body).Decode(&res)
+
+	fmt.Println(res["message"])
+	time.Sleep(time.Second)
 }
 
 // ==================================
@@ -344,7 +430,8 @@ func mainMenu() {
 			lastMangaID = ""
 			mangaInfoGRPC(grpcClient)
 		case "3", "progress":
-			updateProgressGRPC(grpcClient)
+			updateProgressHTTP()
+			lastMangaID = ""
 		case "4", "logout":
 			logoutUser()
 			return
@@ -356,6 +443,7 @@ func mainMenu() {
 
 func welcomeMenu() {
 	clearScreen()
+
 	for {
 		printHeader("WELCOME TO MANGAHUB CLI")
 		fmt.Println("Options:")
@@ -394,8 +482,70 @@ func initGRPC() {
 	grpcClient = pb.NewMangaServiceClient(conn)
 }
 
+var udpConn *net.UDPConn
+
+func startUDP() {
+	serverAddr, err := net.ResolveUDPAddr("udp", "127.0.0.1:9091")
+	if err != nil {
+		fmt.Println("UDP resolve error:", err)
+		return
+	}
+
+	conn, err := net.DialUDP("udp", nil, serverAddr)
+	if err != nil {
+		fmt.Println("UDP dial error:", err)
+		return
+	}
+
+	udpConn = conn
+
+	// SEND REGISTER (once)
+	registerMsg := map[string]string{"type": "REGISTER"}
+	data, _ := json.Marshal(registerMsg)
+	conn.Write(data)
+
+	go func() {
+		buf := make([]byte, 2048)
+
+		for {
+			n, err := conn.Read(buf) // ✅ ONLY Read
+			if err != nil {
+				continue
+			}
+
+			var msg struct {
+				Type    string `json:"type"`
+				ID      string `json:"id"`
+				Message string `json:"message"`
+			}
+
+			if err := json.Unmarshal(buf[:n], &msg); err != nil {
+				continue
+			}
+
+			switch msg.Type {
+			case "REGISTER_ACK":
+				fmt.Println("🔔 UDP registered successfully")
+
+			case "NOTIFY":
+				fmt.Println("\n🔔 NOTIFICATION:", msg.Message)
+				fmt.Print("\n> ")
+
+				// SEND ACK
+				ack := map[string]string{
+					"type": "ACK",
+					"id":   msg.ID,
+				}
+				ackData, _ := json.Marshal(ack)
+				conn.Write(ackData)
+			}
+		}
+	}()
+}
+
 func main() {
 	initGRPC()
+	startUDP()
 	welcomeMenu()
 
 }

@@ -10,7 +10,7 @@ import (
 )
 
 var (
-	jwtSecret       = []byte("supersecretkey") // change later
+	jwtSecret       = []byte("supersecretkey")
 	accessTokenTTL  = 1 * time.Minute
 	refreshTokenTTL = 7 * 24 * time.Hour
 )
@@ -18,13 +18,15 @@ var (
 type Claims struct {
 	UserID   string `json:"user_id"`
 	Username string `json:"username"`
+	Role     string `json:"role"`
 	jwt.RegisteredClaims
 }
 
-func CreateAccessToken(userID, username string) (string, error) {
+func CreateAccessToken(userID, username, role string) (string, error) {
 	claims := &Claims{
 		UserID:   userID,
 		Username: username,
+		Role:     role,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(accessTokenTTL)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
@@ -39,9 +41,9 @@ func CreateRefreshToken(db *sql.DB, userID string) (string, error) {
 	expires := time.Now().Add(refreshTokenTTL)
 
 	_, err := db.Exec(`
-        INSERT INTO refresh_tokens (token, user_id, expires_at)
-        VALUES (?, ?, ?)
-    `, token, userID, expires)
+		INSERT INTO refresh_tokens (token, user_id, expires_at)
+		VALUES (?, ?, ?)
+	`, token, userID, expires)
 
 	return token, err
 }
@@ -51,10 +53,10 @@ func ValidateRefreshToken(db *sql.DB, token string) (string, error) {
 	var expiresAt time.Time
 
 	err := db.QueryRow(`
-        SELECT user_id, expires_at 
-        FROM refresh_tokens 
-        WHERE token = ?
-    `, token).Scan(&userID, &expiresAt)
+		SELECT user_id, expires_at
+		FROM refresh_tokens
+		WHERE token = ?
+	`, token).Scan(&userID, &expiresAt)
 
 	if err == sql.ErrNoRows {
 		return "", errors.New("invalid refresh token")

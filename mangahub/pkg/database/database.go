@@ -9,17 +9,9 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
-func startDBHealthCheck(db *sql.DB, interval time.Duration) {
-	ticker := time.NewTicker(interval)
-	go func() {
-		for range ticker.C {
-			if err := db.Ping(); err != nil {
-				log.Printf("Database health check failed: %v", err)
-			}
-		}
-	}()
-}
 func InitDB(path string) *sql.DB {
+	log.Println("DB FILE:", path) //delete this line after debugging
+
 	db, err := sql.Open("sqlite3", path+"?_foreign_keys=1")
 	if err != nil {
 		log.Fatalf("failed to open db: %v", err)

@@ -4,6 +4,7 @@ import (
 	"flag"
 	"log"
 	"net"
+	"path/filepath"
 
 	grpcinternal "mangahub/internal/grpc"
 	"mangahub/pkg/database"
@@ -17,7 +18,9 @@ func main() {
 	flag.Parse()
 
 	// init DB (reuse your package)
-	db := database.InitDB("mangahub.db")
+	dbPath, _ := filepath.Abs("mangahub.db")
+	db := database.InitDB(dbPath)
+
 	defer db.Close()
 
 	lis, err := net.Listen("tcp", *addr)
@@ -25,6 +28,7 @@ func main() {
 		log.Fatalf("failed to listen %v", err)
 	}
 
+	log.Println("grpc DB path:", dbPath)
 	grpcServer := grpc.NewServer()
 	svc := &grpcinternal.GRPCMangaServer{DB: db}
 	pb.RegisterMangaServiceServer(grpcServer, svc)

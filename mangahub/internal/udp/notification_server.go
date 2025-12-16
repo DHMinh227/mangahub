@@ -4,12 +4,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
-	"strings"
 	"sync"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 type Notification struct {
+	ID        string `json:"id"`
 	Type      string `json:"type"`
 	MangaID   string `json:"manga_id"`
 	Message   string `json:"message"`
@@ -43,7 +45,7 @@ func (s *NotificationServer) Start() error {
 
 	fmt.Println("UDP Notification Server running on", s.Port)
 
-	buf := make([]byte, 1024)
+	buf := make([]byte, 2048)
 
 	for {
 		n, clientAddr, err := conn.ReadFromUDP(buf)
@@ -52,21 +54,32 @@ func (s *NotificationServer) Start() error {
 			continue
 		}
 
-		msg := strings.TrimSpace(string(buf[:n]))
+		var msg struct {
+			Type string `json:"type"`
+			ID   string `json:"id"`
+		}
 
-		if msg == "REGISTER" {
-			s.addClient(*clientAddr)
-			fmt.Println("Client registered:", clientAddr)
+		if err := json.Unmarshal(buf[:n], &msg); err != nil {
 			continue
 		}
 
-		fmt.Println("Unknown UDP message:", msg)
+		switch msg.Type {
+		case "REGISTER":
+			s.addClient(*clientAddr)
+			conn.WriteToUDP([]byte(`{"type":"REGISTER_ACK"}`), clientAddr)
 
+		case "ACK":
+			fmt.Println("✅ ACK received from", clientAddr)
+
+		default:
+			fmt.Println("Unknown UDP message:", msg.Type)
+		}
 	}
 }
 
 // thread-safe add client
 func (s *NotificationServer) addClient(addr net.UDPAddr) {
+
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -75,12 +88,21 @@ func (s *NotificationServer) addClient(addr net.UDPAddr) {
 			return
 		}
 	}
+	fmt.Println("📥 Total UDP clients:", len(s.Clients))
 
 	s.Clients = append(s.Clients, addr)
+	fmt.Println("📥 Total UDP clients:", len(s.Clients))
+
 }
 
 // Broadcast sends notifications to all clients safely.
 func (s *NotificationServer) Broadcast(note Notification) {
+
+	fmt.Println("📢 Broadcast called")
+	fmt.Println("📢 Clients count:", len(s.Clients))
+	fmt.Println("📢 Payload:", note)
+	note.ID = uuid.NewString()
+
 	data, err := json.Marshal(note)
 	if err != nil {
 		fmt.Println("UDP marshal error:", err)

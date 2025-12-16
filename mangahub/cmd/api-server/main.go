@@ -5,9 +5,11 @@ import (
 	"mangahub/internal/auth"
 	grpcserver "mangahub/internal/grpc"
 	"mangahub/internal/manga"
+	"mangahub/internal/udp"
 	"mangahub/internal/user"
 	"mangahub/pkg/database"
 	pb "mangahub/proto/manga"
+	"path/filepath"
 
 	"net"
 	"net/http"
@@ -17,11 +19,27 @@ import (
 )
 
 func main() {
-	db := database.InitDB("mangahub.db")
+
+	dbPath, _ := filepath.Abs("mangahub.db")
+	db := database.InitDB(dbPath)
+
 	defer db.Close()
 
-	router := gin.Default()
+	udpServer := udp.NewNotificationServer(":9091")
 
+	go func() {
+		log.Println("🔔 UDP notification server starting on :9091")
+		if err := udpServer.Start(); err != nil {
+			log.Println("UDP server error:", err)
+		}
+	}()
+
+	log.Println("HTTP API DB path:", dbPath)
+
+	router := gin.Default()
+	for _, r := range router.Routes() {
+		log.Println(r.Method, r.Path)
+	}
 	// --- CORS ---
 	router.Use(func(c *gin.Context) {
 		c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
@@ -56,9 +74,17 @@ func main() {
 	// Protected: update / get progress
 	user.RegisterProgressRoutes(authRequired, db)
 
+	// ADMIN
+	admin := router.Group("/admin")
+	admin.Use(auth.AuthMiddleware()) // 1️⃣ parse JWT, set claims
+	admin.Use(auth.AdminOnly())      // 2️⃣ check role
+	manga.RegisterAdminRoutes(admin, db, udpServer)
+
 	// Public manga routes
 	manga.RegisterRoutes(router, db)
 
 	log.Println("🌐 Starting MangaHub server at http://localhost:8080")
+
 	router.Run(":8080")
+
 }
