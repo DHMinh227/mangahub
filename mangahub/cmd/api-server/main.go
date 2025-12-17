@@ -58,6 +58,9 @@ func main() {
 		c.Next()
 	})
 
+	// --- Rate Limiting ---
+	router.Use(auth.RateLimitMiddleware()) // 100 requests per minute per IP
+
 	grpcServer := grpc.NewServer()
 	pb.RegisterMangaServiceServer(grpcServer, &grpcserver.GRPCMangaServer{DB: db})
 
@@ -80,11 +83,13 @@ func main() {
 		os.Exit(0)
 	}()
 
-	// --- Public Auth ---
-	router.POST("/auth/register", auth.RegisterHandler(db))
-	router.POST("/auth/login", auth.LoginHandler(db))
-	router.POST("/auth/logout", auth.LogoutHandler(db))
-	router.POST("/auth/refresh", auth.RefreshHandler(db))
+	// --- Public Auth (with strict rate limit for security) ---
+	authGroup := router.Group("/auth")
+	authGroup.Use(auth.StrictRateLimitMiddleware()) // 10 requests per minute for auth endpoints
+	authGroup.POST("/register", auth.RegisterHandler(db))
+	authGroup.POST("/login", auth.LoginHandler(db))
+	authGroup.POST("/logout", auth.LogoutHandler(db))
+	authGroup.POST("/refresh", auth.RefreshHandler(db))
 
 	// --- Protected Routes ---
 	authRequired := router.Group("/")
