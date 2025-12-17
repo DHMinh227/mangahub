@@ -14,6 +14,10 @@ import (
 	"net"
 	"net/http"
 
+	"os"
+	"os/signal"
+	"syscall"
+
 	"github.com/gin-gonic/gin"
 	"google.golang.org/grpc"
 )
@@ -40,6 +44,7 @@ func main() {
 	for _, r := range router.Routes() {
 		log.Println(r.Method, r.Path)
 	}
+
 	// --- CORS ---
 	router.Use(func(c *gin.Context) {
 		c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
@@ -59,6 +64,20 @@ func main() {
 	go func() {
 		lis, _ := net.Listen("tcp", ":50051")
 		grpcServer.Serve(lis)
+	}()
+
+	// --- Graceful shutdown ---
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
+
+	go func() {
+		<-quit
+		log.Println("🛑 Shutting down API server...")
+
+		grpcServer.GracefulStop()
+		db.Close()
+
+		os.Exit(0)
 	}()
 
 	// --- Public Auth ---
@@ -83,6 +102,9 @@ func main() {
 	// Public manga routes
 	manga.RegisterRoutes(router, db)
 
+	router.GET("/health", func(c *gin.Context) {
+		c.JSON(200, gin.H{"status": "ok"})
+	})
 	log.Println("🌐 Starting MangaHub server at http://localhost:8080")
 
 	router.Run(":8080")
