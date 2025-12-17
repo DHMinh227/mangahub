@@ -13,6 +13,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	pb "mangahub/proto/manga" // <-- adjust if your generated proto package path differs
@@ -27,11 +28,14 @@ const (
 
 // global session
 var (
-	accessToken  string
-	refreshToken string
-	currentUser  string // username used as user_id in gRPC calls
-	grpcClient   pb.MangaServiceClient
-	lastMangaID  string
+	accessToken    string
+	refreshToken   string
+	currentUser    string // username used as user_id in gRPC calls
+	grpcClient     pb.MangaServiceClient
+	lastMangaID    string
+	notifyCancelCh chan struct{} // channel to cancel previous notification timer
+	notifyMu       sync.Mutex    // mutex for notification state
+	notifyShowing  bool          // track if notification is currently showing
 )
 
 // ==================================
@@ -496,19 +500,31 @@ func startUDP() {
 		fmt.Println("UDP dial error:", err)
 		return
 	}
-
 	udpConn = conn
 
-	// SEND REGISTER (once)
-	registerMsg := map[string]string{"type": "REGISTER"}
-	data, _ := json.Marshal(registerMsg)
-	conn.Write(data)
+	fmt.Println("UDP local addr:", conn.LocalAddr()) // <-- see your port
+
+	// keep sending REGISTER until ACK
+	ackCh := make(chan struct{}, 1)
+	go func() {
+		t := time.NewTicker(2 * time.Second)
+		defer t.Stop()
+		for {
+			select {
+			case <-ackCh:
+				return
+			case <-t.C:
+				registerMsg := map[string]string{"type": "REGISTER"}
+				data, _ := json.Marshal(registerMsg)
+				conn.Write(data)
+			}
+		}
+	}()
 
 	go func() {
 		buf := make([]byte, 2048)
-
 		for {
-			n, err := conn.Read(buf) // ✅ ONLY Read
+			n, err := conn.Read(buf)
 			if err != nil {
 				continue
 			}
@@ -517,8 +533,8 @@ func startUDP() {
 				Type    string `json:"type"`
 				ID      string `json:"id"`
 				Message string `json:"message"`
+				Title   string `json:"title"`
 			}
-
 			if err := json.Unmarshal(buf[:n], &msg); err != nil {
 				continue
 			}
@@ -526,18 +542,68 @@ func startUDP() {
 			switch msg.Type {
 			case "REGISTER_ACK":
 				fmt.Println("🔔 UDP registered successfully")
-
-			case "NOTIFY":
-				fmt.Println("\n🔔 NOTIFICATION:", msg.Message)
-				fmt.Print("\n> ")
-
-				// SEND ACK
-				ack := map[string]string{
-					"type": "ACK",
-					"id":   msg.ID,
+				select {
+				case ackCh <- struct{}{}:
+				default:
 				}
+
+			case "NOTIFY", "NEW_MANGA", "manga_added", "chapter_release":
+				text := msg.Message
+				if text == "" && msg.Title != "" {
+					text = msg.Title
+				}
+				if text == "" {
+					text = "(no message)"
+				}
+
+				// Cancel any previous notification timer and clear old notification
+				notifyMu.Lock()
+				if notifyCancelCh != nil {
+					close(notifyCancelCh)
+				}
+				// If notification is showing, clear the 4 lines (notification + prompt)
+				if notifyShowing {
+					// Move up 4 lines and clear them
+					fmt.Print("\033[4A") // Move up 4 lines
+					fmt.Print("\033[J")  // Clear from cursor to end of screen
+				}
+				notifyCancelCh = make(chan struct{})
+				cancelCh := notifyCancelCh
+				notifyShowing = true
+				notifyMu.Unlock()
+
+				// Print notification inline
+				fmt.Println("\n🔔 ============================================")
+				fmt.Println("   NEW MANGA: " + text)
+				fmt.Println("🔔 ============================================")
+				fmt.Print("> ")
+
+				// Send ACK immediately
+				ack := map[string]string{"type": "ACK", "id": msg.ID}
 				ackData, _ := json.Marshal(ack)
 				conn.Write(ackData)
+
+				// Wait 10 seconds then clear notification
+				go func(ch chan struct{}) {
+					select {
+					case <-time.After(10 * time.Second):
+						notifyMu.Lock()
+						if notifyCancelCh == ch && notifyShowing {
+							// Move up 4 lines and clear them
+							fmt.Print("\033[4A") // Move up 4 lines
+							fmt.Print("\033[J")  // Clear from cursor to end of screen
+							fmt.Print("> ")      // Restore prompt
+							notifyShowing = false
+							notifyCancelCh = nil
+						}
+						notifyMu.Unlock()
+					case <-ch:
+						// New notification came in, do nothing
+					}
+				}(cancelCh)
+
+			default:
+				// Silently ignore unknown message types
 			}
 		}
 	}()

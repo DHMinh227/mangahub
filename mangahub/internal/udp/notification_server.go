@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net"
 	"sync"
-	"time"
 
 	"github.com/google/uuid"
 )
@@ -21,6 +20,7 @@ type Notification struct {
 type NotificationServer struct {
 	Port    string
 	Clients []net.UDPAddr
+	conn    *net.UDPConn // keep the listening connection for broadcasting
 	mu      sync.Mutex
 }
 
@@ -42,6 +42,8 @@ func (s *NotificationServer) Start() error {
 	if err != nil {
 		return err
 	}
+
+	s.conn = conn // store the connection for broadcasting
 
 	fmt.Println("UDP Notification Server running on", s.Port)
 
@@ -70,6 +72,7 @@ func (s *NotificationServer) Start() error {
 
 		case "ACK":
 			fmt.Println("✅ ACK received from", clientAddr)
+		case "NOTIFY":
 
 		default:
 			fmt.Println("Unknown UDP message:", msg.Type)
@@ -97,7 +100,6 @@ func (s *NotificationServer) addClient(addr net.UDPAddr) {
 
 // Broadcast sends notifications to all clients safely.
 func (s *NotificationServer) Broadcast(note Notification) {
-
 	fmt.Println("📢 Broadcast called")
 	fmt.Println("📢 Clients count:", len(s.Clients))
 	fmt.Println("📢 Payload:", note)
@@ -113,35 +115,23 @@ func (s *NotificationServer) Broadcast(note Notification) {
 	s.mu.Lock()
 	clients := make([]net.UDPAddr, len(s.Clients))
 	copy(clients, s.Clients)
+	conn := s.conn // get the listening connection
 	s.mu.Unlock()
 
-	const maxWorkers = 10
-	sem := make(chan struct{}, maxWorkers)
-	var wg sync.WaitGroup
-
-	for _, client := range clients {
-		wg.Add(1)
-		sem <- struct{}{}
-
-		go func(c net.UDPAddr) {
-			defer wg.Done()
-			defer func() { <-sem }()
-
-			conn, err := net.DialUDP("udp", nil, &c)
-			if err != nil {
-				fmt.Println("UDP dial error:", err)
-				return
-			}
-			defer conn.Close()
-
-			conn.SetWriteDeadline(time.Now().Add(2 * time.Second))
-
-			if _, err := conn.Write(data); err != nil {
-				fmt.Println("UDP write error:", err)
-				return
-			}
-		}(client)
+	if conn == nil {
+		fmt.Println("UDP server not started, cannot broadcast")
+		return
 	}
 
-	wg.Wait()
+	// Send to all clients using the same listening connection
+	// This ensures the source port is :9091 which the CLI expects
+	for _, client := range clients {
+		fmt.Println("📤 Sending to client:", client.String())
+		_, err := conn.WriteToUDP(data, &client)
+		if err != nil {
+			fmt.Println("UDP write error to", client.String(), ":", err)
+		} else {
+			fmt.Println("✅ Sent to", client.String())
+		}
+	}
 }
