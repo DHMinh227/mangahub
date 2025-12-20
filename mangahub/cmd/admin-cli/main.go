@@ -6,9 +6,11 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
 	"strings"
+	"time"
 )
 
 const API = "http://localhost:8080"
@@ -176,8 +178,78 @@ func mustInt(s string) int {
 	return n
 }
 
+func startTCPListener() error {
+	conn, err := net.Dial("tcp", "127.0.0.1:9090")
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+
+	go startHeartbeat(conn)
+
+	scanner := bufio.NewScanner(conn)
+
+	for scanner.Scan() {
+		raw := scanner.Bytes()
+
+		var base struct {
+			Type string `json:"type"`
+		}
+		if err := json.Unmarshal(raw, &base); err != nil {
+			continue
+		}
+
+		if base.Type == "PONG" {
+			continue
+		}
+
+		var update struct {
+			UserID  string `json:"user_id"`
+			MangaID string `json:"manga_id"`
+			Chapter int    `json:"chapter"`
+		}
+
+		if err := json.Unmarshal(raw, &update); err != nil {
+			continue
+		}
+
+		fmt.Printf(
+			"\n[LIVE] User %s → %s ch %d\n> ",
+			update.UserID,
+			update.MangaID,
+			update.Chapter,
+		)
+	}
+
+	return fmt.Errorf("tcp connection closed")
+}
+
+func startHeartbeat(conn net.Conn) {
+	ticker := time.NewTicker(5 * time.Second)
+	defer ticker.Stop()
+
+	for range ticker.C {
+		_, err := conn.Write([]byte(`{"type":"PING"}` + "\n"))
+		if err != nil {
+			return
+		}
+	}
+}
+
+func runTCPClient() {
+	for {
+		err := startTCPListener()
+		fmt.Println("TCP disconnected, retrying...")
+		time.Sleep(3 * time.Second)
+		if err == nil {
+			return
+		}
+	}
+}
+
 func main() {
 	login()
+	go runTCPClient()
 
 	for {
 		fmt.Println("\nADMIN MENU")

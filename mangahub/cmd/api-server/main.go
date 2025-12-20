@@ -5,6 +5,7 @@ import (
 	"mangahub/internal/auth"
 	grpcserver "mangahub/internal/grpc"
 	"mangahub/internal/manga"
+	"mangahub/internal/tcp"
 	"mangahub/internal/udp"
 	"mangahub/internal/user"
 	"mangahub/pkg/database"
@@ -96,7 +97,16 @@ func main() {
 	authRequired.Use(auth.AuthMiddleware())
 
 	// Protected: update / get progress
-	user.RegisterProgressRoutes(authRequired, db)
+	var progressEmitter *tcp.ProgressEmitter
+
+	emitter, err := tcp.NewProgressEmitter("localhost:9090")
+	if err != nil {
+		log.Println("⚠ TCP emitter unavailable, continuing without realtime sync")
+	} else {
+		progressEmitter = emitter
+	}
+
+	user.RegisterProgressRoutes(authRequired, db, progressEmitter)
 
 	// ADMIN
 	admin := router.Group("/admin")
