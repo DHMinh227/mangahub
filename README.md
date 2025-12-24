@@ -2,7 +2,7 @@
 
 .this is how a project should never be built and run 
 .this is a reminder if you dont have clear plan and time
-.this is how you should start and try to copy
+.this is how you should not start and try to copy
 .this is a reminder that a system is not a simple program 
 .this is reminder that all of these can run but never mean it good
 .this is reminder that pls just requirements is something need to be clear
