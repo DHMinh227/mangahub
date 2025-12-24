@@ -48,5 +48,5 @@ func main() {
 	log.Println("UDP registration port :9091")
 	log.Println("UDP broadcast HTTP control :9094")
 
-	log.Fatal(http.ListenAndServe("127.0.0.1:9094", nil))
+	log.Fatal(http.ListenAndServe(":9094", nil))
 }

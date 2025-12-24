@@ -1,0 +1,29 @@
+services:
+  api:
+    build:
+      context: .
+      target: api-runtime
+    container_name: mangahub-api
+    ports:
+      - "8080:8080"
+      - "50051:50051"
+      - "9091:9091/udp"
+    volumes:
+      - ./mangahub.db:/data/mangahub.db
+    environment:
+      - DB_PATH=/data/mangahub.db
+    depends_on:
+      - sync
+    restart: unless-stopped
+
+  sync:
+    build:
+      context: .
+      target: tcp-runtime
+    container_name: mangahub-sync
+    ports:
+      - "9090:9090"
+    restart: unless-stopped
+
+volumes:
+  manga-data:

@@ -10,7 +10,6 @@ import (
 	"mangahub/internal/user"
 	"mangahub/pkg/database"
 	pb "mangahub/proto/manga"
-	"path/filepath"
 
 	"net"
 	"net/http"
@@ -25,7 +24,11 @@ import (
 
 func main() {
 
-	dbPath, _ := filepath.Abs("mangahub.db")
+	dbPath := os.Getenv("DB_PATH")
+	if dbPath == "" {
+		dbPath = "mangahub.db"
+	}
+
 	db := database.InitDB(dbPath)
 
 	defer db.Close()
@@ -99,7 +102,12 @@ func main() {
 	// Protected: update / get progress
 	var progressEmitter *tcp.ProgressEmitter
 
-	emitter, err := tcp.NewProgressEmitter("localhost:9090")
+	addr := os.Getenv("TCP_SYNC_ADDR")
+	if addr == "" {
+		addr = "tcp:9090"
+	}
+	emitter, err := tcp.NewProgressEmitter(addr)
+
 	if err != nil {
 		log.Println("⚠ TCP emitter unavailable, continuing without realtime sync")
 	} else {
