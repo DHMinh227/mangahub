@@ -8,3 +8,5 @@
 .this is reminder that pls just requirements is something need to be clear
 .this a reminder that if you work in a major you not interesting , you will never make it right ( not all IT and CS is the same , making hashing password and contract not the same with web building )
 .this is TRASH!!! 
+
+.i bless anyone who can read this and understand and know how to fix it with immunity to blind and baldness , cuz im blinding now (frfr my eyesight is going worse)
